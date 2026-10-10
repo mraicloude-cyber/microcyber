@@ -1,13 +1,22 @@
 import React from 'react';
-import { Phone, Mail, MapPin, Clock, MessageCircle, Shield, Scale } from 'lucide-react';
+import { Phone, Mail, MapPin, Clock, MessageCircle, Shield, Search, ArrowRight } from 'lucide-react';
 import { CONTACT_INFO } from '../data/productsData';
+import { useNavigation } from '../context/NavigationContext';
 
 interface FooterProps {
   onOpenTerms: () => void;
   onOpenBooking: () => void;
+  onOpenAdmin: () => void;
+  onOpenTracker: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onOpenTerms, onOpenBooking }) => {
+export const Footer: React.FC<FooterProps> = ({
+  onOpenTerms,
+  onOpenBooking,
+  onOpenAdmin,
+}) => {
+  const { navigateTo } = useNavigation();
+
   return (
     <footer id="contact" className="bg-[#050508] border-t border-neutral-900 pt-16 pb-12 text-neutral-400 text-xs sm:text-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -17,7 +26,10 @@ export const Footer: React.FC<FooterProps> = ({ onOpenTerms, onOpenBooking }) =>
           
           {/* Brand & Overview (col-span-4) */}
           <div className="lg:col-span-4 space-y-4 text-left">
-            <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigateTo('home')}
+              className="flex items-center gap-3 text-left cursor-pointer"
+            >
               <div className="w-10 h-10 rounded-full border border-red-600/50 bg-black flex items-center justify-center text-red-500 shadow-md">
                 <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current">
                   <path d="M12 2a1 1 0 0 1 1 1v2h2a1 1 0 1 1 0 2h-2v2.18c2.28.46 4 2.47 4 4.82v1a4 4 0 0 1-2.5 3.7V20a2 2 0 1 1-4 0v-1.3A4 4 0 0 1 8 15v-1c0-2.35 1.72-4.36 4-4.82V7H10a1 1 0 0 1 0-2h2V3a1 1 0 0 1 1-1z"/>
@@ -31,7 +43,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenTerms, onOpenBooking }) =>
                   K O L K A T A
                 </div>
               </div>
-            </div>
+            </button>
 
             <p className="text-neutral-400 leading-relaxed text-xs">
               Kolkata's premier luxury hookah rental and hospitality event provider. Supplying authentic flavour brands, crystal Bohemian hookahs, professional mixologists and gourmet chefs for private parties, birthdays, bachelors, and weddings.
@@ -50,43 +62,84 @@ export const Footer: React.FC<FooterProps> = ({ onOpenTerms, onOpenBooking }) =>
             </div>
           </div>
 
-          {/* Quick Navigation (col-span-2) */}
+          {/* Multi-Page Navigation (col-span-2) */}
           <div className="lg:col-span-2 space-y-3 text-left">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-              Quick Links
+              Explore Pages
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
-                <a href="#home" className="hover:text-red-400 transition-colors">
-                  Home
-                </a>
+                <button
+                  onClick={() => navigateTo('home')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Home Page
+                </button>
               </li>
               <li>
-                <a href="#why-us" className="hover:text-red-400 transition-colors">
-                  About Us & Why Choose Us
-                </a>
+                <button
+                  onClick={() => navigateTo('products')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Marketplace Collection
+                </button>
               </li>
               <li>
-                <a href="#products-section" className="hover:text-red-400 transition-colors">
-                  Hookah, Flavours & Accessories
-                </a>
+                <button
+                  onClick={() => navigateTo('services')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Event & Bar Services
+                </button>
               </li>
               <li>
-                <a href="#services" className="hover:text-red-400 transition-colors">
-                  Bartenders & Cook Services
-                </a>
+                <button
+                  onClick={() => navigateTo('about')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  About Us & Standards
+                </button>
               </li>
               <li>
-                <a href="#gallery" className="hover:text-red-400 transition-colors">
-                  Gallery & Party Setups
-                </a>
+                <button
+                  onClick={() => navigateTo('gallery')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Photo Gallery
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('track')}
+                  className="hover:text-amber-400 transition-colors text-left flex items-center gap-1.5"
+                >
+                  <Search className="w-3 h-3 text-amber-400" />
+                  <span>Track Booking Status</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => navigateTo('contact')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Contact & Coverage
+                </button>
               </li>
               <li>
                 <button
                   onClick={onOpenTerms}
-                  className="hover:text-red-400 transition-colors cursor-pointer text-left"
+                  className="hover:text-red-400 transition-colors text-left"
                 >
                   Terms & Conditions
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={onOpenAdmin}
+                  className="hover:text-red-400 transition-colors text-left flex items-center gap-1.5 text-neutral-400 hover:text-white"
+                >
+                  <Shield className="w-3.5 h-3.5 text-red-500" />
+                  <span>Admin Management Portal</span>
                 </button>
               </li>
             </ul>
@@ -95,16 +148,60 @@ export const Footer: React.FC<FooterProps> = ({ onOpenTerms, onOpenBooking }) =>
           {/* Products & Flavours Highlight (col-span-3) */}
           <div className="lg:col-span-3 space-y-3 text-left">
             <h4 className="text-sm font-bold text-white uppercase tracking-wider font-heading">
-              Available Brands
+              Categories
             </h4>
-            <p className="text-[11px] text-neutral-400 leading-relaxed">
-              Al Fakir · Al Fuse · Aladdin · Afreen · Al Fazila · Afzal · Aroma · Royal · Ayaan · Keva · Makai · Maya · Exotic · Harval · Al Akbar
-            </p>
-            <div className="pt-2 text-neutral-300 text-xs space-y-1">
-              <p className="text-amber-400 font-semibold">Available Models:</p>
-              <p className="text-[11px] text-neutral-400">
-                Maya Hookah, Coco Aaya Hookah, Afreen Hookah, SR Series, Clay & Silicone Chilam, Coconut Coal & Heater Burners.
-              </p>
+            <div className="space-y-1.5 text-xs">
+              <div>
+                <button
+                  onClick={() => navigateTo('products', 'hookah-bases')}
+                  className="hover:text-red-400 transition-colors text-left text-neutral-300"
+                >
+                  · Hookah & Bohemian Glass Bases
+                </button>
+              </div>
+              <div>
+                <button
+                  onClick={() => navigateTo('products', 'flavours')}
+                  className="hover:text-red-400 transition-colors text-left text-neutral-300"
+                >
+                  · 15+ Exotic Flavour Brands
+                </button>
+              </div>
+              <div>
+                <button
+                  onClick={() => navigateTo('products', 'chilam')}
+                  className="hover:text-red-400 transition-colors text-left text-neutral-300"
+                >
+                  · Clay & Glazed Chilam Bowls
+                </button>
+              </div>
+              <div>
+                <button
+                  onClick={() => navigateTo('products', 'pipes')}
+                  className="hover:text-red-400 transition-colors text-left text-neutral-300"
+                >
+                  · Washable Silicone Hoses
+                </button>
+              </div>
+              <div>
+                <button
+                  onClick={() => navigateTo('products', 'coal-accessories')}
+                  className="hover:text-red-400 transition-colors text-left text-neutral-300"
+                >
+                  · 100% Coconut Charcoal & Burners
+                </button>
+              </div>
+              <div>
+                <button
+                  onClick={() => navigateTo('services')}
+                  className="hover:text-red-400 transition-colors text-left text-neutral-300"
+                >
+                  · Bartenders & Live Party Cooks
+                </button>
+              </div>
+            </div>
+            <div className="pt-2 text-neutral-400 text-[11px] leading-relaxed">
+              Serving Maya, Coco Aaya, Amy Deluxe, Starbuzz, Al Fakher, and Afzal blends.
             </div>
           </div>
 
@@ -147,7 +244,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenTerms, onOpenBooking }) =>
           <div className="space-y-1">
             <p>© 2026 Shisha Rent Kolkata. All rights reserved.</p>
             <p className="text-[11px] text-neutral-600">
-              Disclaimer: Hookah equipment rental is intended for adults aged 18+ only. 100% tobacco-free herbal shisha options are available upon customer request.
+              Disclaimer: Hookah equipment rental is intended for adults aged 21+ only. 100% tobacco-free herbal shisha options are available upon customer request.
             </p>
           </div>
 
@@ -160,7 +257,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenTerms, onOpenBooking }) =>
             </button>
             <button
               onClick={onOpenBooking}
-              className="px-3.5 py-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-800 text-xs font-semibold"
+              className="px-3.5 py-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-800 text-xs font-semibold cursor-pointer"
             >
               Book Online
             </button>

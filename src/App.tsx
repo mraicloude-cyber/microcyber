@@ -3,47 +3,70 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { Hero } from './components/Hero';
-import { QuickServicesBar } from './components/QuickServicesBar';
-import { ProductCategoriesPreview } from './components/ProductCategoriesPreview';
-import { ProductsCatalogSection } from './components/ProductsCatalogSection';
-import { WhyChooseUs } from './components/WhyChooseUs';
-import { ServicesSection } from './components/ServicesSection';
-import { HowBookingWorks } from './components/HowBookingWorks';
-import { GallerySection } from './components/GallerySection';
-import { TestimonialsSection } from './components/TestimonialsSection';
 import { Footer } from './components/Footer';
 import { BookingModal } from './components/BookingModal';
 import { TermsModal } from './components/TermsModal';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
+import { AdminPanelModal } from './components/AdminPanelModal';
+import { CustomerOrderTrackerModal } from './components/CustomerOrderTrackerModal';
+import { ProductDetailModal } from './components/ProductDetailModal';
+import { CartDrawer } from './components/CartDrawer';
 import { ProductItem } from './data/productsData';
+import { api, PaymentConfig } from './services/api';
+import { useCart } from './context/CartContext';
+import { useNavigation } from './context/NavigationContext';
+
+// Multi-Page Views
+import { HomePage } from './pages/HomePage';
+import { ProductsPage } from './pages/ProductsPage';
+import { ServicesPage } from './pages/ServicesPage';
+import { AboutPage } from './pages/AboutPage';
+import { GalleryPage } from './pages/GalleryPage';
+import { TrackPage } from './pages/TrackPage';
+import { ContactPage } from './pages/ContactPage';
 
 export default function App() {
+  const { cartItems } = useCart();
+  const { currentPage, navigateTo } = useNavigation();
+  const [currentDomain, setCurrentDomain] = useState<string>('shisharent.in');
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null);
+
+  // Global Modals State
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isTrackerModalOpen, setIsTrackerModalOpen] = useState(false);
+  const [activeTrackingId, setActiveTrackingId] = useState<string>('');
+
+  // Product Detail Modal State
+  const [selectedProductDetail, setSelectedProductDetail] = useState<ProductItem | null>(null);
+  const [isProductDetailOpen, setIsProductDetailOpen] = useState(false);
+
+  // Selected Booking Items State
   const [selectedBookingItems, setSelectedBookingItems] = useState<ProductItem[]>([]);
 
-  // Smooth scroll to catalog section
-  const scrollToProducts = () => {
-    const el = document.getElementById('products-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Load app configuration and active payment settings on mount
+  useEffect(() => {
+    loadPaymentSettings();
+    api
+      .getConfig()
+      .then((cfg) => {
+        if (cfg?.domain) setCurrentDomain(cfg.domain);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadPaymentSettings = async () => {
+    try {
+      const res = await api.getPaymentSettings();
+      if (res.success && res.data) {
+        setPaymentConfig(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch payment settings:', err);
     }
-  };
-
-  // When clicking a category card from the preview section
-  const handleSelectCategory = (categoryId: string) => {
-    setSelectedCategoryId(categoryId);
-    scrollToProducts();
-  };
-
-  // View all products handler
-  const handleViewAllProducts = () => {
-    setSelectedCategoryId('all');
-    scrollToProducts();
   };
 
   // When user clicks "Request in Booking" on a product card
@@ -58,9 +81,107 @@ export default function App() {
     });
   };
 
-  // Quick service click handler
-  const handleSelectQuickService = (serviceName: string) => {
+  // When user clicks "Track Order" from booking confirmation
+  const handleTrackCreatedOrder = (bookingId: string) => {
+    setActiveTrackingId(bookingId);
+    navigateTo('track');
+  };
+
+  // Open Product Detail Modal
+  const handleOpenProductDetail = (item: ProductItem) => {
+    setSelectedProductDetail(item);
+    setIsProductDetailOpen(true);
+  };
+
+  // Open booking modal with items from cart
+  const handleProceedFromCartToBooking = () => {
+    if (cartItems.length > 0) {
+      const items = cartItems.map((ci) => ci.product);
+      setSelectedBookingItems((prev) => {
+        const merged = [...prev];
+        items.forEach((it) => {
+          if (!merged.some((m) => m.id === it.id)) {
+            merged.push(it);
+          }
+        });
+        return merged;
+      });
+    }
     setIsBookingOpen(true);
+  };
+
+  // Open booking with custom configured chillum setup
+  const handleOpenBookingWithConfig = (cfg: {
+    flavourName: string;
+    chillumType: 'classic_clay' | 'gold_silicon';
+    chillumPrice: number;
+    wantsBase: boolean;
+    baseType?: string;
+    basePrice?: number;
+    totalPrice: number;
+  }) => {
+    const item: ProductItem = {
+      id: `configured-${Date.now()}`,
+      name: `${cfg.flavourName} (${
+        cfg.chillumType === 'classic_clay' ? 'Classic Clay' : 'Gold Silicon Cloud'
+      }${cfg.wantsBase ? ` + ${cfg.baseType}` : ''})`,
+      category: 'chilam',
+      categoryLabel: 'Pre-filled Ready Chillum',
+      type: 'Ready-to-Smoke Setup',
+      brand: 'Shisha Rent Kolkata',
+      price: cfg.totalPrice,
+      description: `Chillum: ${
+        cfg.chillumType === 'classic_clay' ? 'Classic Clay (₹600)' : 'Gold Silicon Cloud (₹700)'
+      }. Hookah Base: ${cfg.wantsBase ? `Included (${cfg.baseType})` : 'No (Chillum Only)'}.`,
+      inStock: true,
+      rentalOrSale: 'Available for Rental & Setup',
+      rating: 5.0,
+      reviewsCount: 1,
+      images: ['/src/assets/images/flavour_paan_collection_1791655854763.jpg'],
+      specs: {
+        'Chillum': cfg.chillumType === 'classic_clay' ? 'Classic Clay (₹600)' : 'Gold Silicon Cloud (₹700)',
+        'Flavour': cfg.flavourName,
+        'Base': cfg.wantsBase ? `${cfg.baseType}` : 'No',
+      },
+    };
+    setSelectedBookingItems([item]);
+    setIsBookingOpen(true);
+  };
+
+  // Render the active multi-page view
+  const renderCurrentPage = () => {
+    switch (currentPage) {
+      case 'products':
+        return (
+          <ProductsPage
+            onOpenBookingModal={() => setIsBookingOpen(true)}
+            onOpenBookingWithConfig={handleOpenBookingWithConfig}
+            onOpenPolicyModal={() => setIsTermsOpen(true)}
+            onOpenProductDetail={handleOpenProductDetail}
+            onRequestItemInBooking={handleRequestItemInBooking}
+            selectedBookingItems={selectedBookingItems}
+          />
+        );
+      case 'services':
+        return <ServicesPage onOpenBooking={() => setIsBookingOpen(true)} />;
+      case 'about':
+        return <AboutPage onOpenBooking={() => setIsBookingOpen(true)} />;
+      case 'gallery':
+        return <GalleryPage onOpenBooking={() => setIsBookingOpen(true)} />;
+      case 'track':
+        return <TrackPage paymentConfig={paymentConfig} />;
+      case 'contact':
+        return <ContactPage />;
+      case 'home':
+      default:
+        return (
+          <HomePage
+            onOpenBooking={() => setIsBookingOpen(true)}
+            onOpenBookingWithConfig={handleOpenBookingWithConfig}
+            onOpenProductDetail={handleOpenProductDetail}
+          />
+        );
+    }
   };
 
   return (
@@ -68,57 +189,24 @@ export default function App() {
       {/* Top Header Navigation */}
       <Header
         onOpenBooking={() => setIsBookingOpen(true)}
-        onOpenProducts={scrollToProducts}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenTracker={() => navigateTo('track')}
+        currentDomain={currentDomain}
+        onSelectDomain={(d) => setCurrentDomain(d)}
       />
 
-      <main className="flex-1">
-        {/* Full-width Luxury Hero */}
-        <Hero
-          onOpenBooking={() => setIsBookingOpen(true)}
-          onOpenProducts={scrollToProducts}
-        />
-
-        {/* 7 Quick Services Ribbon */}
-        <QuickServicesBar onSelectService={handleSelectQuickService} />
-
-        {/* Explore Hookah, Flavours & Accessories Categories Preview */}
-        <ProductCategoriesPreview
-          onSelectCategory={handleSelectCategory}
-          onViewAllProducts={handleViewAllProducts}
-        />
-
-        {/* Customer-Facing Products, Flavours & Accessories Complete Catalog */}
-        <ProductsCatalogSection
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategoryTab={(id) => setSelectedCategoryId(id)}
-          onRequestItemInBooking={handleRequestItemInBooking}
-          selectedBookingItems={selectedBookingItems}
-          onOpenBookingModal={() => setIsBookingOpen(true)}
-        />
-
-        {/* Why Choose Us & Custom Quote Card */}
-        <WhyChooseUs onOpenBooking={() => setIsBookingOpen(true)} />
-
-        {/* Premium Event Services (Bartenders, Cooks, Lounge Setup) */}
-        <ServicesSection onOpenBooking={() => setIsBookingOpen(true)} />
-
-        {/* How Booking Works (4 Steps) */}
-        <HowBookingWorks onOpenBooking={() => setIsBookingOpen(true)} />
-
-        {/* Visual Gallery */}
-        <GallerySection />
-
-        {/* Testimonials & Reviews */}
-        <TestimonialsSection />
-      </main>
+      {/* Main Dynamic View Content */}
+      <main className="flex-1">{renderCurrentPage()}</main>
 
       {/* Floating WhatsApp Action Button */}
       <FloatingWhatsApp />
 
-      {/* Footer */}
+      {/* Global Multi-Page Footer */}
       <Footer
         onOpenTerms={() => setIsTermsOpen(true)}
         onOpenBooking={() => setIsBookingOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenTracker={() => navigateTo('track')}
       />
 
       {/* Interactive Booking & Custom Quote Modal */}
@@ -126,12 +214,43 @@ export default function App() {
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
         initialSelectedItems={selectedBookingItems}
+        paymentConfig={paymentConfig}
+        currentDomain={currentDomain}
+        onTrackOrder={handleTrackCreatedOrder}
       />
 
-      {/* Terms & Conditions Modal with Customer Choice Policy */}
-      <TermsModal
-        isOpen={isTermsOpen}
-        onClose={() => setIsTermsOpen(false)}
+      {/* Product Detail Modal */}
+      <ProductDetailModal
+        product={selectedProductDetail}
+        isOpen={isProductDetailOpen}
+        onClose={() => setIsProductDetailOpen(false)}
+        onOpenBookingForProduct={(p) => {
+          handleRequestItemInBooking(p);
+          setIsProductDetailOpen(false);
+          setIsBookingOpen(true);
+        }}
+        onSelectRelatedProduct={(p) => setSelectedProductDetail(p)}
+      />
+
+      {/* Cart Slide-out Drawer */}
+      <CartDrawer onProceedToBooking={handleProceedFromCartToBooking} />
+
+      {/* Terms & Conditions Modal */}
+      <TermsModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
+
+      {/* Administrator-Only Payment Settings, QR Upload & Booking Verification Portal */}
+      <AdminPanelModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        onPaymentConfigUpdated={loadPaymentSettings}
+      />
+
+      {/* Customer Order Tracker Modal (accessible on confirmation) */}
+      <CustomerOrderTrackerModal
+        isOpen={isTrackerModalOpen}
+        onClose={() => setIsTrackerModalOpen(false)}
+        initialBookingId={activeTrackingId}
+        paymentConfig={paymentConfig}
       />
     </div>
   );

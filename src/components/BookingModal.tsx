@@ -1,23 +1,44 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, MapPin, Check, QrCode, MessageCircle, AlertCircle, Sparkles, Plus, Trash2 } from 'lucide-react';
+import {
+  X,
+  Calendar,
+  Clock,
+  MapPin,
+  Check,
+  QrCode,
+  MessageCircle,
+  AlertCircle,
+  Sparkles,
+  Plus,
+  Trash2,
+  Upload,
+  ExternalLink,
+} from 'lucide-react';
 import { ALL_PRODUCTS, CONTACT_INFO, CUSTOMER_POLICY, ProductItem } from '../data/productsData';
+import { api, PaymentConfig } from '../services/api';
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialSelectedItems?: ProductItem[];
+  paymentConfig: PaymentConfig | null;
+  currentDomain?: string;
+  onTrackOrder?: (bookingId: string) => void;
 }
 
 export const BookingModal: React.FC<BookingModalProps> = ({
   isOpen,
   onClose,
   initialSelectedItems = [],
+  paymentConfig,
+  currentDomain = 'shisharent.in',
+  onTrackOrder,
 }) => {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('19:00');
-  const [deliveryArea, setDeliveryArea] = useState('Salt Lake');
+  const [deliveryArea, setDeliveryArea] = useState('Salt Lake (Sector 1 - 5)');
   const [customAddress, setCustomAddress] = useState('');
   const [potCount, setPotCount] = useState('2');
   const [selectedItems, setSelectedItems] = useState<ProductItem[]>(initialSelectedItems);
@@ -25,8 +46,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [includeCook, setIncludeCook] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cod' | 'qr'>('cod');
   const [specialInstructions, setSpecialInstructions] = useState('');
-  const [showQrPreview, setShowQrPreview] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
+
+  // Payment proof upload after booking
+  const [txReference, setTxReference] = useState('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
+  const [proofUploadedSuccess, setProofUploadedSuccess] = useState(false);
 
   // Sync if initialSelectedItems change
   React.useEffect(() => {
@@ -65,11 +93,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     e.target.value = '';
   };
 
-  // Generate WhatsApp message url
   const generateWhatsAppMessage = () => {
     const itemsList = selectedItems.map((i) => `• ${i.name} (${i.categoryLabel})`).join('\n');
-    const message = `*NEW SHISHA RENT KOLKATA BOOKING INQUIRY*
+    const message = `*NEW SHISHA RENT KOLKATA BOOKING (${createdBookingId || 'NEW'})*
 ---------------------------------------
+🌐 *Domain:* ${currentDomain}
 👤 *Name:* ${customerName || 'Customer'}
 📞 *Phone:* ${customerPhone || 'Not provided'}
 📅 *Date:* ${eventDate || 'Today / Urgent'}
@@ -93,12 +121,61 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
     return `https://wa.me/919876543210?text=${encodeURIComponent(message)}`;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (paymentMethod === 'qr') {
-      setShowQrPreview(true);
+    setIsSubmitting(true);
+
+    try {
+      const res = await api.createBooking({
+        customerName,
+        customerPhone,
+        eventDate,
+        eventTime,
+        deliveryArea,
+        customAddress,
+        potCount,
+        requestedItems: selectedItems,
+        includeBartender,
+        includeCook,
+        specialInstructions,
+        paymentMethod,
+        domain: currentDomain,
+      });
+
+      if (res.success && res.data) {
+        setCreatedBookingId(res.data.id);
+        setBookingSubmitted(true);
+      } else {
+        alert(res.error || 'Failed to place booking');
+      }
+    } catch (err) {
+      alert('Network error while placing booking');
+    } finally {
+      setIsSubmitting(false);
     }
-    setBookingSubmitted(true);
+  };
+
+  // Upload Payment Proof after order creation
+  const handleUploadPaymentProof = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createdBookingId) return;
+
+    setProofUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('bookingId', createdBookingId);
+      if (txReference) formData.append('transactionReference', txReference);
+      if (proofFile) formData.append('paymentProof', proofFile);
+
+      const res = await api.uploadPaymentProof(formData);
+      if (res.success) {
+        setProofUploadedSuccess(true);
+      }
+    } catch (err) {
+      alert('Upload failed');
+    } finally {
+      setProofUploading(false);
+    }
   };
 
   return (
@@ -109,7 +186,7 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
         <div className="flex items-center justify-between p-5 sm:p-6 border-b border-neutral-800 bg-neutral-950/80">
           <div className="text-left">
             <span className="text-[11px] font-bold uppercase tracking-widest text-red-500">
-              CUSTOM QUOTE & BOOKING
+              CUSTOM QUOTE & BOOKING · {currentDomain.toUpperCase()}
             </span>
             <h3 className="text-xl sm:text-2xl font-bold text-white font-heading">
               Book Hookah & Event Services
@@ -125,78 +202,141 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
 
         {/* Modal Body */}
         {bookingSubmitted ? (
-          <div className="p-6 sm:p-8 text-center space-y-6">
+          <div className="p-6 sm:p-8 text-center space-y-6 max-h-[80vh] overflow-y-auto">
             <div className="w-16 h-16 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 mx-auto flex items-center justify-center">
               <Check className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h4 className="text-2xl font-bold text-white font-heading">
-                Booking Request Generated!
-              </h4>
-              <p className="text-sm text-neutral-300 max-w-md mx-auto">
-                Thank you {customerName || 'Sir/Madam'}. Our team is ready to dispatch your order to <strong className="text-white">{deliveryArea}</strong>.
+              <div className="text-xs uppercase tracking-widest text-neutral-400">
+                Booking Reference ID
+              </div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-amber-400 font-mono tracking-wider">
+                {createdBookingId}
+              </div>
+              <p className="text-xs sm:text-sm text-neutral-300 max-w-md mx-auto">
+                Thank you <strong className="text-white">{customerName}</strong>. Your order has been recorded in PostgreSQL and the immutable terms agreement has been logged.
               </p>
             </div>
 
-            {/* If UPI QR selected */}
+            {/* If Online QR selected: show active QR code loaded from backend */}
             {paymentMethod === 'qr' && (
-              <div className="p-5 rounded-xl bg-neutral-900/90 border border-neutral-800 max-w-sm mx-auto space-y-3 text-left">
-                <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase">
-                  <QrCode className="w-4 h-4" />
-                  <span>UPI Payment QR Code</span>
-                </div>
-                
-                {/* Visual QR Code Display */}
-                <div className="bg-white p-3 rounded-xl flex items-center justify-center mx-auto w-44 h-44 shadow-inner">
-                  <svg viewBox="0 0 100 100" className="w-full h-full text-black">
-                    <rect width="100" height="100" fill="white" />
-                    {/* Corners */}
-                    <rect x="10" y="10" width="24" height="24" fill="black" />
-                    <rect x="14" y="14" width="16" height="16" fill="white" />
-                    <rect x="18" y="18" width="8" height="8" fill="black" />
-                    <rect x="66" y="10" width="24" height="24" fill="black" />
-                    <rect x="70" y="14" width="16" height="16" fill="white" />
-                    <rect x="74" y="18" width="8" height="8" fill="black" />
-                    <rect x="10" y="66" width="24" height="24" fill="black" />
-                    <rect x="14" y="70" width="16" height="16" fill="white" />
-                    <rect x="18" y="74" width="8" height="8" fill="black" />
-                    {/* QR Code Blocks */}
-                    <rect x="42" y="15" width="8" height="8" fill="black" />
-                    <rect x="52" y="25" width="8" height="8" fill="black" />
-                    <rect x="42" y="42" width="16" height="16" fill="black" />
-                    <rect x="65" y="45" width="10" height="10" fill="black" />
-                    <rect x="45" y="70" width="14" height="8" fill="black" />
-                    <rect x="65" y="68" width="15" height="15" fill="black" />
-                    <rect x="25" y="45" width="8" height="12" fill="black" />
-                  </svg>
+              <div className="p-5 rounded-2xl bg-neutral-950 border border-neutral-800 max-w-md mx-auto space-y-4 text-left">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase">
+                    <QrCode className="w-4 h-4" />
+                    <span>Active UPI QR Payment</span>
+                  </div>
+                  <span className="text-[10px] text-neutral-400 font-mono">
+                    ID: {paymentConfig?.upiId || 'shisharent@upi'}
+                  </span>
                 </div>
 
-                <div className="text-center text-xs text-neutral-300">
-                  <p className="font-semibold text-white">Scan & Pay via any UPI App</p>
-                  <p className="text-[11px] text-neutral-400">GPay · PhonePe · Paytm · UPI ID: shisharent@upi</p>
+                {/* Actual QR Image Loaded from Persistent Storage */}
+                <div className="bg-white p-3 rounded-xl flex items-center justify-center mx-auto w-48 h-48 shadow-xl">
+                  {paymentConfig?.qrImageUrl ? (
+                    <img
+                      src={paymentConfig.qrImageUrl}
+                      alt="Active QR Code"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    /* Elegant high-res vector QR fallback if admin hasn't uploaded custom image yet */
+                    <svg viewBox="0 0 100 100" className="w-full h-full text-black">
+                      <rect width="100" height="100" fill="white" />
+                      <rect x="10" y="10" width="24" height="24" fill="black" />
+                      <rect x="14" y="14" width="16" height="16" fill="white" />
+                      <rect x="18" y="18" width="8" height="8" fill="black" />
+                      <rect x="66" y="10" width="24" height="24" fill="black" />
+                      <rect x="70" y="14" width="16" height="16" fill="white" />
+                      <rect x="74" y="18" width="8" height="8" fill="black" />
+                      <rect x="10" y="66" width="24" height="24" fill="black" />
+                      <rect x="14" y="70" width="16" height="16" fill="white" />
+                      <rect x="18" y="74" width="8" height="8" fill="black" />
+                      <rect x="42" y="15" width="8" height="8" fill="black" />
+                      <rect x="52" y="25" width="8" height="8" fill="black" />
+                      <rect x="42" y="42" width="16" height="16" fill="black" />
+                      <rect x="65" y="45" width="10" height="10" fill="black" />
+                      <rect x="45" y="70" width="14" height="8" fill="black" />
+                      <rect x="65" y="68" width="15" height="15" fill="black" />
+                      <rect x="25" y="45" width="8" height="12" fill="black" />
+                    </svg>
+                  )}
                 </div>
+
+                <div className="text-xs text-neutral-300 space-y-1">
+                  <p><strong className="text-white">Payee:</strong> {paymentConfig?.payeeName || 'Shisha Rent Kolkata'}</p>
+                  <p><strong className="text-white">UPI VPA:</strong> <span className="font-mono text-amber-300">{paymentConfig?.upiId || 'shisharent@upi'}</span></p>
+                  <p className="text-[11px] text-neutral-400">{paymentConfig?.instructions}</p>
+                </div>
+
+                {/* Upload proof form right here */}
+                {!proofUploadedSuccess ? (
+                  <form onSubmit={handleUploadPaymentProof} className="pt-3 border-t border-neutral-900 space-y-2">
+                    <span className="text-[11px] font-semibold text-neutral-300 block">
+                      Attach Payment Proof / Screenshot:
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Enter 12-digit UPI UTR Ref..."
+                      value={txReference}
+                      onChange={(e) => setTxReference(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-white"
+                    />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) setProofFile(e.target.files[0]);
+                      }}
+                      className="w-full text-[11px] text-neutral-400"
+                    />
+                    <button
+                      type="submit"
+                      disabled={proofUploading || (!txReference && !proofFile)}
+                      className="w-full py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold disabled:opacity-50"
+                    >
+                      {proofUploading ? 'Uploading...' : 'Submit Payment Proof'}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-800 text-xs text-emerald-300 text-center font-medium">
+                    ✓ Payment proof submitted for admin verification!
+                  </div>
+                )}
               </div>
             )}
 
-            {/* WhatsApp confirmation CTA */}
+            {/* Action buttons */}
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <a
                 href={generateWhatsAppMessage()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-900/40 transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-900/40 transition-all"
               >
                 <MessageCircle className="w-4 h-4" />
-                <span>Send via WhatsApp for Instant Setup</span>
+                <span>Confirm on WhatsApp ({CONTACT_INFO.phone})</span>
               </a>
+
+              {createdBookingId && onTrackOrder && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onTrackOrder(createdBookingId);
+                  }}
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-amber-400 border border-neutral-700 text-xs font-semibold cursor-pointer"
+                >
+                  Track Order & Substitutions
+                </button>
+              )}
 
               <button
                 onClick={() => {
                   setBookingSubmitted(false);
                   onClose();
                 }}
-                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-sm font-medium border border-neutral-800"
+                className="w-full sm:w-auto px-5 py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium border border-neutral-800"
               >
                 Close
               </button>
@@ -209,7 +349,7 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                  Your Name *
+                  Your Full Name *
                 </label>
                 <input
                   type="text"
@@ -236,7 +376,7 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
               </div>
             </div>
 
-            {/* Date, Time & Area */}
+            {/* Date, Time & Pot Count */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-300 mb-1">
@@ -337,7 +477,7 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
 
               {selectedItems.length === 0 ? (
                 <div className="p-3 rounded-lg bg-neutral-900/40 text-center text-xs text-neutral-500">
-                  No specific brand added yet. We will provide our best-selling setup, or you can select specific items from the dropdown above.
+                  No specific brand added yet. We will provide our best-selling setup, or select specific items from the dropdown above.
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto">
@@ -438,12 +578,11 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
               />
             </div>
 
-            {/* Availability policy notice */}
-            <div className="p-3 rounded-lg bg-red-950/20 border border-red-900/40 text-[11px] text-neutral-300 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            {/* Customer Choice Guarantee Notice */}
+            <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-300 flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
-                <strong>Customer Guarantee: </strong>
-                All requested brands/items are provided as per availability. If any requested item is unavailable, we will inform you beforehand and will NOT make any substitute without your confirmation.
+                <strong>Customer Choice Guarantee:</strong> Your requested brand and hardware will be provided. No substitution will ever be made without your explicit confirmation.
               </span>
             </div>
 
@@ -461,9 +600,10 @@ ${includeCook ? '✓ Cook / Private Chef included' : '✗ No Cook'}
 
               <button
                 type="submit"
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-900/40 transition-all cursor-pointer"
+                disabled={isSubmitting}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg shadow-red-900/40 transition-all cursor-pointer disabled:opacity-50"
               >
-                Confirm Booking Request
+                {isSubmitting ? 'Placing Order...' : 'Confirm Booking Request'}
               </button>
             </div>
 
